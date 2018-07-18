@@ -39,6 +39,7 @@ uint8_t channel = 0;
 int data_start[200];
 int data_last[200];
 int data_stop[200];
+int data_enable[200]={0};
 int max_start = 0;
 int max_last = 0;
 uint8_t pinstatus[50]={0};
@@ -235,8 +236,8 @@ answer_to_connection (void *cls, struct MHD_Connection *connection,
                       size_t *upload_data_size, void **ptr)
 {
 	//printf("The ID of this thread is: %ld\n", (long int)syscall(224)); 
-	while(mutex_flag==1);
-	mutex_flag = 1;
+	//while(mutex_flag==1);
+	//mutex_flag = 1;
 	//struct connection_info_struct *con_info = *con_cls;
 int i=-1;
 int len2 =0;
@@ -288,25 +289,38 @@ if (&dummy != *ptr)
 	  int ret;
 		
 	  
-	  if (*upload_data_size != 0)
+	  if (*upload_data_size != 0 )
 	  {
-
-		
+	
 		
 		const char* length = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONTENT_LENGTH); 	
 			const char* body = MHD_lookup_connection_value (connection, MHD_POSTDATA_KIND, NULL);	
 
-			//printf("length=%s\n",length);
+			printf("length=%s\n",length);
 			//printf("body=%s\n",body);
 			//printf("url=%s\n",url); 
-			if(length != NULL && body != NULL)
+			
+			printf("upload_data_size= %d\n",*upload_data_size);
+
+			if(length != NULL)
 			{		  
 				len2 = atoi(length);
+				if(*upload_data_size != len2 )
+	  			{
+	  				return MHD_YES;
+	  			}
+			}
+			printf("len2= %d\n",len2);
+			if(length != NULL && body != NULL)
+			{		  
+				
 				//printf("len2=%d\n",len2); 
 				re_body = (uint8_t*)calloc(len2,sizeof(uint8_t)+8);
 				strncpy(re_body,body,len2);
 				re_body[len2]='\0';
 				printf("[%d-%d-%d %d:%d:%d] POST RECIEVE len=%d url=%s version=%s body=%s\n", tblock->tm_year+1900, tblock->tm_mon+1, tblock->tm_mday, tblock->tm_hour, tblock->tm_min, tblock->tm_sec,len2, url, version,body);
+				//printf("[%d-%d-%d %d:%d:%d] POST RECIEVE len=%d url=%s version=%s re_body=%s\n", tblock->tm_year+1900, tblock->tm_mon+1, tblock->tm_mday, tblock->tm_hour, tblock->tm_min, tblock->tm_sec,len2, url, version,re_body);
+				
 			}
 		
 			if ((sp = fopen("/var/log/idol.log","a+")) != NULL)
@@ -314,13 +328,15 @@ if (&dummy != *ptr)
 				fprintf(sp,"[%d-%d-%d %d:%d:%d] POST RECIEVE len=%d url=%s version=%s body=%s\n", tblock->tm_year+1900, tblock->tm_mon+1, tblock->tm_mday, tblock->tm_hour, tblock->tm_min, tblock->tm_sec,len2, url, version,body);
 				fclose(sp);
 			}
-			//printf("len2= %d\n",len2);
+			
+
 			if(len2 != 0)
 			{
 				json_object *my_object = json_tokener_parse(re_body);
 				
 				free(re_body);
-				
+				//printf("recieve post my_object= %s\n", json_object_to_json_string(my_object));
+				  
 				if(json_object_to_json_string(my_object) != NULL && (0 != strcmp (json_object_to_json_string(my_object), "null")))
 				{
 				  uint16_t address=0;
@@ -378,7 +394,12 @@ if (&dummy != *ptr)
 							data_last[i] = (int)json_object_get_int(obj_value2);
 							//printf("JcommandData[%d]=%s\n", i, json_object_to_json_string(obj));
 								
+							json_object *obj3 = json_object_array_get_idx(JcommandData, i);
+							json_object *obj_value3 = NULL;
+					  		json_object_object_get_ex(obj3, "enable",&obj_value3);
+							data_enable[i] = (int)json_object_get_int(obj_value3);
 
+							
 							data_stop[i] = data_start[i] + data_last[i];
 
 							if(max_start < data_start[i])
@@ -845,11 +866,17 @@ int main(void)
 			{
 				if(data_start[i] == flag_run)
 				{
-					ctrl_jdq(i,HIGH);
+					if(data_enable[i] == 1)
+					{
+						ctrl_jdq(i,HIGH);
+					}
 				}
 				if(data_stop[i] == flag_run)
 				{
-					ctrl_jdq(i,LOW);
+					if(data_enable[i] == 1)
+					{
+						ctrl_jdq(i,LOW);
+					}
 				}
 			}
 
