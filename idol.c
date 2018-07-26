@@ -22,7 +22,7 @@
 
 #include <sys/syscall.h>  
 
-char * softversion = "2018071600";
+char * softversion = "2018072600";
 char   returnstr[200]={0};
 char hostname[50]={0};
 char startTime[50]={0};
@@ -31,7 +31,7 @@ char mac[6];
 int mutex_flag = 0;
 
 int working = 0;
-
+int repeat = 1;
 uint8_t hardwareVersion = 0;
 uint8_t firmwareVersion = 0;
 uint8_t channel = 0;
@@ -339,14 +339,14 @@ if (&dummy != *ptr)
 				  
 				if(json_object_to_json_string(my_object) != NULL && (0 != strcmp (json_object_to_json_string(my_object), "null")))
 				{
-				  uint16_t address=0;
+				  int address=0;
 				  uint8_t index=0,resourceSum=0,commandint=255,commandData=0;
 				  const char * command;
 				  const char * deviceType;
 				  post_type = 1;
 				  
 				  json_object *Jaddress = NULL;
-				  json_object_object_get_ex(my_object, "address",&Jaddress);
+				  json_object_object_get_ex(my_object, "repeat",&Jaddress);
 				  json_object *Jindex = NULL;
 				  json_object_object_get_ex(my_object, "index",&Jindex);
 				  json_object *Jcommand = NULL;
@@ -358,7 +358,7 @@ if (&dummy != *ptr)
 				  json_object *JdeviceType = NULL;
 				  json_object_object_get_ex(my_object, "deviceType",&JdeviceType);
 				  
-				  address = (uint16_t)json_object_get_int(Jaddress);
+				  
 				  index = (uint16_t)json_object_get_int(Jindex);
 				  command = json_object_to_json_string(Jcommand);
 				  commandData = (uint16_t)json_object_get_int(JcommandData);
@@ -372,51 +372,48 @@ if (&dummy != *ptr)
 				  //printf("recieve post JcommandData= %s\n", json_object_to_json_string(JcommandData));
 				  	int i;
 					
-					if(working == 1)
-		  			{
-		  				//working = 1;
-		  			}
-		  			else
-		  			{
-		  				max_start = 0;
-		  				max_last = 0;
 
-						for(i=0; i < json_object_array_length(JcommandData); i++)
+					
+	  			
+	  				max_start = 0;
+	  				max_last = 0;
+
+					for(i=0; i < json_object_array_length(JcommandData); i++)
+					{
+						json_object *obj = json_object_array_get_idx(JcommandData, i);
+						json_object *obj_value = NULL;
+				  		json_object_object_get_ex(obj, "start",&obj_value);
+						data_start[i] = (int)json_object_get_int(obj_value);
+
+						json_object *obj2 = json_object_array_get_idx(JcommandData, i);
+						json_object *obj_value2 = NULL;
+				  		json_object_object_get_ex(obj2, "last",&obj_value2);
+						data_last[i] = (int)json_object_get_int(obj_value2);
+						//printf("JcommandData[%d]=%s\n", i, json_object_to_json_string(obj));
+							
+						json_object *obj3 = json_object_array_get_idx(JcommandData, i);
+						json_object *obj_value3 = NULL;
+				  		json_object_object_get_ex(obj3, "enable",&obj_value3);
+						data_enable[i] = (int)json_object_get_int(obj_value3);
+
+						
+						data_stop[i] = data_start[i] + data_last[i];
+
+						if(max_start < data_start[i])
 						{
-							json_object *obj = json_object_array_get_idx(JcommandData, i);
-							json_object *obj_value = NULL;
-					  		json_object_object_get_ex(obj, "start",&obj_value);
-							data_start[i] = (int)json_object_get_int(obj_value);
+							max_start = data_start[i];
+						}
 
-							json_object *obj2 = json_object_array_get_idx(JcommandData, i);
-							json_object *obj_value2 = NULL;
-					  		json_object_object_get_ex(obj2, "last",&obj_value2);
-							data_last[i] = (int)json_object_get_int(obj_value2);
-							//printf("JcommandData[%d]=%s\n", i, json_object_to_json_string(obj));
-								
-							json_object *obj3 = json_object_array_get_idx(JcommandData, i);
-							json_object *obj_value3 = NULL;
-					  		json_object_object_get_ex(obj3, "enable",&obj_value3);
-							data_enable[i] = (int)json_object_get_int(obj_value3);
+						if(max_last < data_last[i])
+						{
+							max_last = data_last[i];
+						}
+						
+						printf("data_start[%d]=%d  data_last[%d]=%d data_stop[%d]=%d \n", i, data_start[i],i,data_last[i],i,data_stop[i]);
+					}	
 
-							
-							data_stop[i] = data_start[i] + data_last[i];
-
-							if(max_start < data_start[i])
-							{
-								max_start = data_start[i];
-							}
-
-							if(max_last < data_last[i])
-							{
-								max_last = data_last[i];
-							}
-							
-							printf("data_start[%d]=%d  data_last[%d]=%d data_stop[%d]=%d \n", i, data_start[i],i,data_last[i],i,data_stop[i]);
-						}	
-
-						working = 1;
-					}							
+					//working = 1;
+					working = json_object_get_int(Jaddress);							
 		  			
 
 		  			mutex_flag = 0;
@@ -854,11 +851,13 @@ int main(void)
 	
 	while(1)
 	{  
-		if(working == 1)
+		if(working > 0)
 		{
 			if(flag_run > max_start + max_last)
 			{
-				working = 0;
+				//working = 0;
+				working --;
+				printf("working=%d \n",working);
 				flag_run = 0;
 			}
 
@@ -881,6 +880,7 @@ int main(void)
 			}
 
 			flag_run++;
+
 		}
 
 
